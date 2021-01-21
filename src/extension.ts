@@ -1,6 +1,8 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import fetch from 'node-fetch';
+
 
 export function activate(context: vscode.ExtensionContext) {
 	let disposable = vscode.commands.registerCommand('extension.LogFunc', async () => {
@@ -19,6 +21,12 @@ export function activate(context: vscode.ExtensionContext) {
 		runLogFunc({
 			LogAll: true
 		});
+	});
+	context.subscriptions.push(disposable);
+	
+	disposable = vscode.commands.registerCommand('extension.InserLogFuncCode', () => {
+		console.log("InserLogFuncCode")
+		insertFuncLogSourceCode();
 	});
 	context.subscriptions.push(disposable);
 }
@@ -41,7 +49,7 @@ function runLogFunc(options: any = {}) {
 	let endIndex = needSearchInUp || needLogAll? 0 : currentLinePos;
 
 	let index = currentLinePos;
-	let changes = [];
+	let changes: (string | vscode.Range)[][] = [];
 	while (index >= endIndex) {
 
 		let line = document.lineAt(index)
@@ -58,6 +66,7 @@ function runLogFunc(options: any = {}) {
 						placeHolder: `do you want log <${match[1]}> funciton ?`,
 					}).then( value => {
 						if (value && value.label == "yes"){
+							if (!editor) {return}
 							editor.edit(editBuilder => {
 								editBuilder.replace(line.range, newtext);
 							});
@@ -73,7 +82,30 @@ function runLogFunc(options: any = {}) {
 
 	editor.edit(editBuilder => {
 		changes.forEach(element => {
-			editBuilder.replace(element[0], element[1]);
+			if (element[0] instanceof vscode.Range && typeof element[1] === 'string' ) {
+				editBuilder.replace(element[0], element[1]);
+			}
 		});
 	})
+}
+
+function insertFuncLogSourceCode() {
+	console.log("insertFuncLogSourceCode")
+
+	let url = "https://raw.githubusercontent.com/Vasya-M/brs_logger/master/source/utilities/FuncLogger.brs";
+	fetch(url)
+	.then(function(response) {
+			response.text().then(function(text) {
+				let editor = vscode.window.activeTextEditor;
+				if (editor == undefined) {return}
+				
+				const document = editor.document;
+				const selection = editor.selection;
+				editor.edit(editBuilder => {
+					if (editor == undefined) {return}
+					let lastLine = editor.document.lineAt(editor.document.lineCount - 1);
+					editBuilder.insert(lastLine.range.end, "\n\n" + text)
+				});
+			});
+	});
 }
