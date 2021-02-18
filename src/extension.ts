@@ -33,8 +33,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {}
 
+let functionStartRegx = /^ *(?:sub|function) +(.*?) *\(.*\).*$/i;
+let logFuncRegx = /^.*logfunc\((?: *"(.*?)" *?\)|.*).*$/i; // logFunc("a"), logFunc( "a"), logFunc("a" ), logFunc(foo), logFunc(foo + "a")
 
-function runLogFunc(options: any = {}) {
+async function runLogFunc(options: any = {}) {
 	let needSearchInUp = options.SearchInUp == true;
 	let needLogAll = options.LogAll == true;
 
@@ -44,38 +46,33 @@ function runLogFunc(options: any = {}) {
 	const document = editor.document;
 	const selection = editor.selection;
 
-	let regexp = /^ *(?:sub|function) +(.*)\(.*\).*$/i;
 	let currentLinePos = needLogAll? document.lineCount -1  : selection.active.line;
 	let endIndex = needSearchInUp || needLogAll? 0 : currentLinePos;
 
 	let index = currentLinePos;
 	let changes: (string | vscode.Range)[][] = [];
+	let ignoreFunctionsList = new Map<string, boolean>();
+	let skipNextFucntion = false;
+
 	while (index >= endIndex) {
 
 		let line = document.lineAt(index)
 		let text = line.text;
 
-		let match = text.match(regexp)
+		let match = text.match(logFuncRegx)
 		if (match){
-			let newtext = `${match[0]}\n    _ = logfunc(\"${match[1]}\")\n`;
-			
-			if( needSearchInUp ){
-				vscode.window.showQuickPick(
-					["yes", "no"].map(label => ({label})),
-					{
-						placeHolder: `do you want log <${match[1]}> funciton ?`,
-					}).then( value => {
-						if (value && value.label == "yes"){
-							if (!editor) {return}
-							editor.edit(editBuilder => {
-								editBuilder.replace(line.range, newtext);
-							});
-						}
-				});
-			} else {
+			// if (match[1] !== undefined) {
+			// 	ignoreFunctionsList.set(match[1], true);
+			// }
+			skipNextFucntion = true
+		} else {
+			match = text.match(functionStartRegx)
+			if (match && !skipNextFucntion && ignoreFunctionsList.get(match[1]) !== true){
+				let newtext = `${match[0]}\n    _ = logfunc(\"${match[1]}\")`;
 				changes.push([line.range, newtext]);
+				if (! needLogAll) {break;}
 			}
-			if (! needLogAll) {break;}
+			if (match) {skipNextFucntion = false}
 		}
 		index--;
 	}	
@@ -89,23 +86,20 @@ function runLogFunc(options: any = {}) {
 	})
 }
 
-function insertFuncLogSourceCode() {
+async function insertFuncLogSourceCode() {
 	console.log("insertFuncLogSourceCode")
 
 	let url = "https://raw.githubusercontent.com/Vasya-M/brs_logger/master/source/utilities/FuncLogger.brs";
-	fetch(url)
-	.then(function(response) {
-			response.text().then(function(text) {
-				let editor = vscode.window.activeTextEditor;
-				if (editor == undefined) {return}
-				
-				const document = editor.document;
-				const selection = editor.selection;
-				editor.edit(editBuilder => {
-					if (editor == undefined) {return}
-					let lastLine = editor.document.lineAt(editor.document.lineCount - 1);
-					editBuilder.insert(lastLine.range.end, "\n\n" + text)
-				});
-			});
+	let sourceCode = await (await fetch(url)).text()
+
+	let editor = vscode.window.activeTextEditor;
+	if (editor == undefined) {return}
+
+	const document = editor.document;
+	const selection = editor.selection;
+	editor.edit(editBuilder => {
+		if (editor == undefined) {return}
+		let lastLine = editor.document.lineAt(editor.document.lineCount - 1);
+		editBuilder.insert(lastLine.range.end, "\n\n" + sourceCode)
 	});
 }
