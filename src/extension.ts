@@ -85,7 +85,7 @@ async function runLogFunc(options: any = {}) {
 			}
 
 			if (match) {				
-				if (curFuncName === "") {
+				if (needLogCallers && curFuncName === "") {
 					// start looking for function callers and logging them.
 					curFuncName = match[2]
 					index = document.lineCount -1 

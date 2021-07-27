@@ -35,7 +35,6 @@
 				"command": "extension.LogCallers",
 				"title": "LogFunc: callers of current function"
 			}
-			}
 		]
 	},
 	"scripts": {
