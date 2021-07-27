@@ -4,15 +4,14 @@ import * as vscode from 'vscode';
 import fetch from 'node-fetch';
 
 
-export function activate(context: vscode.ExtensionContext) {
-	let disposable = vscode.commands.registerCommand('extension.LogFunc', async () => {
-			runLogFunc();
-	});
-	context.subscriptions.push(disposable);
 
-	disposable = vscode.commands.registerCommand('extension.LogFuncUp', async () => {
+export async function activate(context: vscode.ExtensionContext) {
+	LoggerSourceCode() // load before use
+
+	let disposable = vscode.commands.registerCommand('extension.LogFuncUp', async () => {
 		runLogFunc({
-			SearchInUp: true
+			SearchInUp: true,
+			tillFirstMatchOrFaild: true
 		});
 	});
 	context.subscriptions.push(disposable);
@@ -24,21 +23,32 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(disposable);
 	
-	disposable = vscode.commands.registerCommand('extension.InserLogFuncCode', () => {
-		console.log("InserLogFuncCode")
+	disposable = vscode.commands.registerCommand('extension.InserLogFuncCode', async () => {
 		insertFuncLogSourceCode();
+	});
+	context.subscriptions.push(disposable);
+	
+	disposable = vscode.commands.registerCommand('extension.LogCallers', async () => {
+		runLogFunc({
+			logCallers: true
+		});
 	});
 	context.subscriptions.push(disposable);
 }
 
 export function deactivate() {}
 
-let functionStartRegx = /^ *(?:sub|function) +(.*?) *\(.*\).*$/i;
+let functionStartRegx = /^([ \t\s]*(?:sub|function) +(\w+) *\(.*\)(?:\s*as\s+\w+)?)(.*$)/i;
 let logFuncRegx = /^.*logfunc\((?: *"(.*?)" *?\)|.*).*$/i; // logFunc("a"), logFunc( "a"), logFunc("a" ), logFunc(foo), logFunc(foo + "a")
+
+let functionEndRegx = /^ *end +(?:sub|function).*$/i;
+let anonymousFunctionStartRegx = /^.*(?:sub|function) *\(.*\).*$/i;
 
 async function runLogFunc(options: any = {}) {
 	let needSearchInUp = options.SearchInUp == true;
 	let needLogAll = options.LogAll == true;
+	let needLogCallers = options.logCallers == true;
+	let curFuncName = "";
 
 	let editor = vscode.window.activeTextEditor;
 	if (editor == undefined) {return}
@@ -47,32 +57,45 @@ async function runLogFunc(options: any = {}) {
 	const selection = editor.selection;
 
 	let currentLinePos = needLogAll? document.lineCount -1  : selection.active.line;
-	let endIndex = needSearchInUp || needLogAll? 0 : currentLinePos;
+	let endIndex = 0
 
 	let index = currentLinePos;
 	let changes: (string | vscode.Range)[][] = [];
-	let ignoreFunctionsList = new Map<string, boolean>();
+	let fileName = document.fileName.split("/").pop();
 	let skipNextFucntion = false;
+	let needLogFunc = true;
 
 	while (index >= endIndex) {
 
 		let line = document.lineAt(index)
 		let text = line.text;
 
-		let match = text.match(logFuncRegx)
+		let match = text.match(logFuncRegx) 
 		if (match){
-			// if (match[1] !== undefined) {
-			// 	ignoreFunctionsList.set(match[1], true);
-			// }
+			// will skip logging next function definition.
 			skipNextFucntion = true
+		} else if (curFuncName.length > 0 &&  !needLogFunc && isFunctionCalled(curFuncName, text) && !text.match(functionStartRegx)) {
+			// says that current function has call of curFuncName
+			needLogFunc = true
 		} else {
 			match = text.match(functionStartRegx)
-			if (match && !skipNextFucntion && ignoreFunctionsList.get(match[1]) !== true){
-				let newtext = `${match[0]}\n    _ = logfunc(\"${match[1]}\")`;
+			if (match && !skipNextFucntion && needLogFunc){
+				let newtext = `${match[1]}\n    _ = logfunc(\"${match[2]}\") \n    ${match[3]}`;
 				changes.push([line.range, newtext]);
-				if (! needLogAll) {break;}
 			}
-			if (match) {skipNextFucntion = false}
+
+			if (match) {				
+				if (curFuncName === "") {
+					// start looking for function callers and logging them.
+					curFuncName = match[2]
+					index = document.lineCount -1 
+				}
+				
+				
+				if (needLogCallers) {needLogFunc = false} // need reset state to find next function call. 
+				skipNextFucntion = false
+			}
+			if (match && options.tillFirstMatchOrFaild) {break;}
 		}
 		index--;
 	}	
@@ -86,11 +109,24 @@ async function runLogFunc(options: any = {}) {
 	})
 }
 
+function isFunctionCalled(funcName: string, line: string) {
+	let functionCallRegex = new RegExp('^[^\']*'+funcName+'\\(.*$', 'i');
+	return line.match(functionCallRegex)
+}
+let funcLoggerSourceCode: string = "";
+async function LoggerSourceCode() {
+	if (funcLoggerSourceCode == "") {
+		console.log("downloading LOGGER")
+		let url = "https://raw.githubusercontent.com/Vasya-M/brs_logger/master/source/utilities/FuncLogger.brs";
+		funcLoggerSourceCode = await (await fetch(url)).text()
+	}
+	return funcLoggerSourceCode // return coppy
+}
+
 async function insertFuncLogSourceCode() {
 	console.log("insertFuncLogSourceCode")
 
-	let url = "https://raw.githubusercontent.com/Vasya-M/brs_logger/master/source/utilities/FuncLogger.brs";
-	let sourceCode = await (await fetch(url)).text()
+	let sourceCode = await LoggerSourceCode()
 
 	let editor = vscode.window.activeTextEditor;
 	if (editor == undefined) {return}

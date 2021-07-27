@@ -3,7 +3,7 @@
 	"displayName": "brsFuncLogExt",
 	"description": "extention for fast logging functions calls in brightscript",
 	"publisher": "MartynychVasyl",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"engines": {
 		"vscode": "^1.52.0"
 	},
@@ -11,29 +11,30 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:extension.LogFunc",
 		"onCommand:extension.LogFuncUp",
 		"onCommand:extension.LogFuncAll",
-		"onCommand:extension.InserLogFuncCode"
+		"onCommand:extension.InserLogFuncCode",
+		"onCommand:extension.LogCallers"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
-				"command": "extension.LogFunc",
-				"title": "LogFunc"
-			},
-			{
 				"command": "extension.LogFuncUp",
-				"title": "LogFunc Up"
+				"title": "LogFunc: current function"
 			},
 			{
 				"command": "extension.LogFuncAll",
-				"title": "LogFunc All"
+				"title": "LogFunc: All"
 			},
 			{
 				"command": "extension.InserLogFuncCode",
-				"title": "insert FuncLogger source code"
+				"title": "LogFunc: insert FuncLogger source code"
+			},
+			{
+				"command": "extension.LogCallers",
+				"title": "LogFunc: callers of current function"
+			}
 			}
 		]
 	},
@@ -45,20 +46,25 @@
 		"test": "node ./out/test/runTest.js"
 	},
 	"devDependencies": {
+		"@types/fs-extra": "^9.0.7",
 		"@types/glob": "^7.1.1",
 		"@types/mocha": "^5.2.7",
 		"@types/node": "^12.11.7",
 		"@types/node-fetch": "^2.5.8",
 		"@types/vscode": "^1.52.0",
 		"fetch": "1.1.0",
+		"fs-extra": "^9.1.0",
 		"glob": "^7.1.5",
 		"mocha": "^6.2.2",
 		"node-fetch": "2.6.1",
+		"recursive-copy": "^2.0.11",
 		"tslint": "^5.20.0",
 		"typescript": "^3.6.4",
 		"vscode-test": "^1.2.2"
 	},
 	"dependencies": {
-		"node-fetch": "^2.6.1"
+		"node-fetch": "^2.6.1",
+		"recursive-copy": "^2.0.11",
+		"fs-extra": "^9.1.0"
 	}
 }
